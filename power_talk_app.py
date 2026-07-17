@@ -38,7 +38,7 @@ AVAILABLE_MODELS = [
     "claude-haiku-4-5-20251001",
 ]
 DEFAULT_MODEL = "claude-sonnet-4-5"  # aktuelles Prod-Modell von Energetic Shift
-DEFAULT_VOICE_ID = "ir0KTs5bP6CukCLlxC6H"
+DEFAULT_VOICE_ID = "RJ3ZAJTmTKjRtBU1jaZH"
 ELEVENLABS_MODEL = "eleven_multilingual_v2"
 
 DEFAULT_PROFILE = {
@@ -171,7 +171,23 @@ FORM
    als Vortrag.
 3. Affirmation in Richtung Zielzustand - kurz, klar, vorwaertsgerichtet,
    konkret auf den gewuenschten Zustand zugeschnitten.
-Gesamtlaenge: 45-75 Sekunden gesprochen (ca. 90-170 Woerter).
+Gesamtlaenge: ca. 85-95 Sekunden gesprochen (ca. 190-230 Woerter).
+
+ELEVENLABS-FORMAT
+Dieser Text geht direkt an ElevenLabs Text-to-Speech, keine Person liest ihn
+vorher. Formatiere ihn so, dass er sich beim Vorlesen maximal natuerlich
+anhoert:
+- Nutze Absaetze (Leerzeile) an den Uebergaengen zwischen Situation, Reframe
+  und Affirmation - das erzeugt eine hoerbare, laengere Pause an genau den
+  Stellen, wo sie inhaltlich Sinn ergibt.
+- Setze Satzzeichen bewusst zur Steuerung von Tempo und Pausen: Punkte fuer
+  einen klaren Stopp, Kommas fuer einen kurzen Atemzug, Auslassungspunkte
+  ("...") fuer eine laengere, bedeutungsvolle Pause.
+- Keine Markdown-Formatierung (keine Sternchen, keine Aufzaehlungszeichen,
+  keine Ueberschriften) und keine Regieanweisungen in Klammern wie "(lacht)"
+  oder "(Pause)" - die TTS-Engine liest sowas woertlich mit vor, das
+  zerstoert die Illusion.
+- Schreib Zahlen aus, falls sie vorkommen (z.B. "eins bis zehn" statt "1-10").
 
 STIMME
 Wellen-Rhythmus: kurze Impulssaetze wechseln mit laengeren, fliessenden
