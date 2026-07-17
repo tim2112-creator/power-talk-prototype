@@ -41,16 +41,52 @@ DEFAULT_MODEL = "claude-sonnet-4-5"  # aktuelles Prod-Modell von Energetic Shift
 DEFAULT_VOICE_ID = "RJ3ZAJTmTKjRtBU1jaZH"
 ELEVENLABS_MODEL = "eleven_multilingual_v2"
 
+PROFILE_PRESETS = {
+    "Donnerstagabend-Erschöpfung": {
+        "situation": (
+            "Es ist Donnerstagabend. Die Person hat die Woche viel geschafft, "
+            "ist platt, aber gleichzeitig innerlich unruhig. Der Grund: ein innerer "
+            "Antreiber lässt nicht zu, dass sie sich hinsetzt und wirklich ruht, "
+            "obwohl nicht mehr viel zu tun ist. Es fühlt sich an wie Bammel davor, "
+            "loszulassen und in die Ruhe zu gehen."
+        ),
+        "zielzustand": "Entspannung und Ruhe",
+        "ausgangs_intensitaet": 8,
+    },
+    "Stressiger Arbeitstag zur Familie": {
+        "situation": (
+            "Die Person kommt gerade aus einem stressigen Arbeitstag nach Hause "
+            "und muss jetzt direkt in den Familienmodus wechseln. Im Kopf sind "
+            "noch tausend unerledigte Gedanken und To-dos vom Tag, die sich "
+            "nicht einfach abschalten lassen, obwohl die Familie jetzt "
+            "Aufmerksamkeit und Präsenz braucht."
+        ),
+        "zielzustand": "Präsent und ruhig bei der Familie ankommen",
+        "ausgangs_intensitaet": 7,
+    },
+    "Schwieriges Feedback geben": {
+        "situation": (
+            "Die Person möchte einer ihr sehr wichtigen Person ehrliches, "
+            "kritisches Feedback geben, merkt aber, dass es ihr total "
+            "schwerfällt, das auszusprechen. Es gibt eine spürbare Blockade "
+            "davor, die andere Person zu enttäuschen oder zu verletzen."
+        ),
+        "zielzustand": "Klarheit und Mut, die eigene Wahrheit auszusprechen",
+        "ausgangs_intensitaet": 7,
+    },
+    "Überforderung mit To-dos": {
+        "situation": (
+            "Die Person sitzt vor einem riesigen Berg an To-dos und fühlt sich "
+            "komplett überfordert. Es fühlt sich an, als könnte sie das alles "
+            "nicht schaffen, der Kopf ist wie blockiert vor lauter Aufgaben."
+        ),
+        "zielzustand": "Handlungsfähigkeit und Klarheit, wo sie anfangen kann",
+        "ausgangs_intensitaet": 9,
+    },
+}
+
 DEFAULT_PROFILE = {
-    "situation": (
-        "Es ist Donnerstagabend. Die Person hat die Woche viel geschafft, "
-        "ist platt, aber gleichzeitig innerlich unruhig. Der Grund: ein innerer "
-        "Antreiber lässt nicht zu, dass sie sich hinsetzt und wirklich ruht, "
-        "obwohl nicht mehr viel zu tun ist. Es fühlt sich an wie Bammel davor, "
-        "loszulassen und in die Ruhe zu gehen."
-    ),
-    "zielzustand": "Entspannung und Ruhe",
-    "ausgangs_intensitaet": 8,
+    **PROFILE_PRESETS["Donnerstagabend-Erschöpfung"],
     "voice_id": DEFAULT_VOICE_ID,
     "voice_speed": 1.15,
 }
@@ -371,6 +407,10 @@ PAGE_HTML = """<!doctype html>
 <h2>Nutzerprofil</h2>
 <div class="profile-grid panel">
   <div class="full">
+    <label>Testprofil</label>
+    <select id="presetSelect" onchange="applyPreset()"></select>
+  </div>
+  <div class="full">
     <label>Situation</label>
     <textarea id="situation" rows="3"></textarea>
   </div>
@@ -411,6 +451,22 @@ PAGE_HTML = """<!doctype html>
 const defaultProfile = __PROFILE_JSON__;
 const defaultVariants = __VARIANTS_JSON__;
 const availableModels = __MODELS_JSON__;
+const profilePresets = __PRESETS_JSON__;
+
+const presetSelect = document.getElementById('presetSelect');
+Object.keys(profilePresets).forEach(name => {
+  const opt = document.createElement('option');
+  opt.value = name;
+  opt.textContent = name;
+  presetSelect.appendChild(opt);
+});
+
+function applyPreset() {
+  const preset = profilePresets[presetSelect.value];
+  document.getElementById('situation').value = preset.situation;
+  document.getElementById('zielzustand').value = preset.zielzustand;
+  document.getElementById('intensitaet').value = preset.ausgangs_intensitaet;
+}
 
 const variantsDiv = document.getElementById('variants');
 const variantNames = Object.keys(defaultVariants);
@@ -567,9 +623,10 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         html = (
-            PAGE_HTML.replace("__PROFILE_JSON__", json.dumps(DEFAULT_PROFILE))
-            .replace("__VARIANTS_JSON__", json.dumps(DEFAULT_VARIANTS))
-            .replace("__MODELS_JSON__", json.dumps(AVAILABLE_MODELS))
+            PAGE_HTML.replace("__PROFILE_JSON__", json.dumps(DEFAULT_PROFILE, ensure_ascii=False))
+            .replace("__VARIANTS_JSON__", json.dumps(DEFAULT_VARIANTS, ensure_ascii=False))
+            .replace("__MODELS_JSON__", json.dumps(AVAILABLE_MODELS, ensure_ascii=False))
+            .replace("__PRESETS_JSON__", json.dumps(PROFILE_PRESETS, ensure_ascii=False))
         )
         body = html.encode("utf-8")
         self.send_response(200)
