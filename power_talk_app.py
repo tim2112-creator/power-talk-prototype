@@ -25,9 +25,11 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import anthropic
+import requests
 
 PORT = int(os.environ.get("PORT", 8765))
 APP_PASSWORD = os.environ.get("APP_PASSWORD")
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
 
 AVAILABLE_MODELS = [
     "claude-sonnet-4-5",
@@ -36,6 +38,8 @@ AVAILABLE_MODELS = [
     "claude-haiku-4-5-20251001",
 ]
 DEFAULT_MODEL = "claude-sonnet-4-5"  # aktuelles Prod-Modell von Energetic Shift
+DEFAULT_VOICE_ID = "ir0KTs5bP6CukCLlxC6H"
+ELEVENLABS_MODEL = "eleven_multilingual_v2"
 
 DEFAULT_PROFILE = {
     "situation": (
@@ -47,6 +51,7 @@ DEFAULT_PROFILE = {
     ),
     "zielzustand": "Entspannung und Ruhe",
     "ausgangs_intensitaet": 8,
+    "voice_id": DEFAULT_VOICE_ID,
 }
 
 # Faithful (gekuerzt auf Single-Turn-Generierung) Reproduktion der Produktiv-
@@ -342,6 +347,16 @@ PAGE_HTML = """<!doctype html>
     <label>Ausgangs-Intensitaet (1-10)</label>
     <input id="intensitaet" type="number" min="1" max="10">
   </div>
+  <div>
+    <label>ElevenLabs Voice-ID</label>
+    <input id="voiceId" type="text">
+  </div>
+  <div style="display:flex; align-items:flex-end;">
+    <label style="display:flex; align-items:center; gap:0.4rem; font-weight:600; font-size:0.85rem;">
+      <input id="generateAudio" type="checkbox" style="width:auto;" checked>
+      Audio generieren (ElevenLabs)
+    </label>
+  </div>
 </div>
 
 <h2>Prompt-Varianten</h2>
@@ -382,6 +397,7 @@ function renderVariants() {
 document.getElementById('situation').value = defaultProfile.situation;
 document.getElementById('zielzustand').value = defaultProfile.zielzustand;
 document.getElementById('intensitaet').value = defaultProfile.ausgangs_intensitaet;
+document.getElementById('voiceId').value = defaultProfile.voice_id;
 renderVariants();
 
 async function generate() {
@@ -398,6 +414,8 @@ async function generate() {
     zielzustand: document.getElementById('zielzustand').value,
     ausgangs_intensitaet: document.getElementById('intensitaet').value,
   };
+  const voiceId = document.getElementById('voiceId').value;
+  const generateAudio = document.getElementById('generateAudio').checked;
 
   const variantCards = variantsDiv.querySelectorAll('.variant-card');
   const variants = {};
@@ -412,7 +430,7 @@ async function generate() {
     const resp = await fetch('/generate', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({profile, variants}),
+      body: JSON.stringify({profile, variants, voice_id: voiceId, generate_audio: generateAudio}),
     });
     const data = await resp.json();
     if (data.error) {
@@ -426,7 +444,13 @@ async function generate() {
         if (result.error) {
           card.innerHTML = `<h3>${name} &middot; ${result.model}</h3><span class="error">Fehler: ${result.error}</span>`;
         } else {
-          card.innerHTML = `<h3>${name} &middot; ${result.model}</h3>${result.text}`;
+          let html = `<h3>${name} &middot; ${result.model}</h3>${result.text}`;
+          if (result.audio_base64) {
+            html += `<audio controls style="width:100%; margin-top:0.75rem;" src="data:audio/mpeg;base64,${result.audio_base64}"></audio>`;
+          } else if (result.audio_error) {
+            html += `<div class="error" style="margin-top:0.5rem;">Audio-Fehler: ${result.audio_error}</div>`;
+          }
+          card.innerHTML = html;
         }
         resultsDiv.appendChild(card);
       });
@@ -450,6 +474,24 @@ def build_user_message(profile: dict) -> str:
         f"Ausgangs-Intensitaet (1-10): {profile['ausgangs_intensitaet']}\n\n"
         "Erstelle jetzt den Power Talk fuer diese Person."
     )
+
+
+def synthesize_speech(text: str, voice_id: str) -> str:
+    """Ruft ElevenLabs TTS auf und gibt das Audio als Base64-MP3 zurueck."""
+    response = requests.post(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+        headers={
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json",
+        },
+        json={
+            "text": text,
+            "model_id": ELEVENLABS_MODEL,
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+    return base64.b64encode(response.content).decode("ascii")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -508,6 +550,8 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             profile = payload["profile"]
             variants = payload["variants"]
+            want_audio = payload.get("generate_audio", False)
+            voice_id = payload.get("voice_id") or DEFAULT_VOICE_ID
 
             api_key = os.environ.get("ANTHROPIC_API_KEY")
             if not api_key:
@@ -529,7 +573,19 @@ class Handler(BaseHTTPRequestHandler):
                     text = "".join(
                         b.text for b in response.content if b.type == "text"
                     )
-                    results[name] = {"text": text.strip(), "model": model}
+                    text = text.strip()
+                    result = {"text": text, "model": model}
+
+                    if want_audio:
+                        if not ELEVENLABS_API_KEY:
+                            result["audio_error"] = "ELEVENLABS_API_KEY ist nicht gesetzt."
+                        else:
+                            try:
+                                result["audio_base64"] = synthesize_speech(text, voice_id)
+                            except Exception as audio_err:
+                                result["audio_error"] = str(audio_err)
+
+                    results[name] = result
                 except Exception as e:
                     results[name] = {"error": str(e), "model": model}
 
