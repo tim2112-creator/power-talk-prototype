@@ -52,6 +52,7 @@ DEFAULT_PROFILE = {
     "zielzustand": "Entspannung und Ruhe",
     "ausgangs_intensitaet": 8,
     "voice_id": DEFAULT_VOICE_ID,
+    "voice_speed": 1.15,
 }
 
 # Faithful (gekuerzt auf Single-Turn-Generierung) Reproduktion der Produktiv-
@@ -366,6 +367,10 @@ PAGE_HTML = """<!doctype html>
     <label>ElevenLabs Voice-ID</label>
     <input id="voiceId" type="text">
   </div>
+  <div>
+    <label>Sprechgeschwindigkeit (0.7&ndash;1.2, Standard 1.0)</label>
+    <input id="voiceSpeed" type="number" min="0.7" max="1.2" step="0.05">
+  </div>
   <div style="display:flex; align-items:flex-end;">
     <label style="display:flex; align-items:center; gap:0.4rem; font-weight:600; font-size:0.85rem;">
       <input id="generateAudio" type="checkbox" style="width:auto;" checked>
@@ -413,6 +418,7 @@ document.getElementById('situation').value = defaultProfile.situation;
 document.getElementById('zielzustand').value = defaultProfile.zielzustand;
 document.getElementById('intensitaet').value = defaultProfile.ausgangs_intensitaet;
 document.getElementById('voiceId').value = defaultProfile.voice_id;
+document.getElementById('voiceSpeed').value = defaultProfile.voice_speed;
 renderVariants();
 
 async function generate() {
@@ -430,6 +436,7 @@ async function generate() {
     ausgangs_intensitaet: document.getElementById('intensitaet').value,
   };
   const voiceId = document.getElementById('voiceId').value;
+  const voiceSpeed = document.getElementById('voiceSpeed').value;
   const generateAudio = document.getElementById('generateAudio').checked;
 
   const variantCards = variantsDiv.querySelectorAll('.variant-card');
@@ -445,7 +452,7 @@ async function generate() {
     const resp = await fetch('/generate', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({profile, variants, voice_id: voiceId, generate_audio: generateAudio}),
+      body: JSON.stringify({profile, variants, voice_id: voiceId, voice_speed: voiceSpeed, generate_audio: generateAudio}),
     });
     const data = await resp.json();
     if (data.error) {
@@ -491,7 +498,7 @@ def build_user_message(profile: dict) -> str:
     )
 
 
-def synthesize_speech(text: str, voice_id: str) -> str:
+def synthesize_speech(text: str, voice_id: str, speed: float = 1.0) -> str:
     """Ruft ElevenLabs TTS auf und gibt das Audio als Base64-MP3 zurueck."""
     response = requests.post(
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
@@ -502,6 +509,7 @@ def synthesize_speech(text: str, voice_id: str) -> str:
         json={
             "text": text,
             "model_id": ELEVENLABS_MODEL,
+            "voice_settings": {"speed": speed},
         },
         timeout=60,
     )
@@ -567,6 +575,7 @@ class Handler(BaseHTTPRequestHandler):
             variants = payload["variants"]
             want_audio = payload.get("generate_audio", False)
             voice_id = payload.get("voice_id") or DEFAULT_VOICE_ID
+            voice_speed = float(payload.get("voice_speed") or 1.0)
 
             api_key = os.environ.get("ANTHROPIC_API_KEY")
             if not api_key:
@@ -596,7 +605,7 @@ class Handler(BaseHTTPRequestHandler):
                             result["audio_error"] = "ELEVENLABS_API_KEY ist nicht gesetzt."
                         else:
                             try:
-                                result["audio_base64"] = synthesize_speech(text, voice_id)
+                                result["audio_base64"] = synthesize_speech(text, voice_id, voice_speed)
                             except Exception as audio_err:
                                 result["audio_error"] = str(audio_err)
 
